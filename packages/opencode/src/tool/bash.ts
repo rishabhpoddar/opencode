@@ -294,7 +294,7 @@ async function shellEnv(ctx: Tool.Context, cwd: string) {
 }
 
 async function shellCommand(ctx: Tool.Context, cwd: string, command: string) {
-  const output = { command, args: [] as string[] }
+  const output = { command, args: [] as string[], env: {} as Record<string, string> }
   await Plugin.trigger(
     "shell.command.before",
     {
@@ -306,7 +306,7 @@ async function shellCommand(ctx: Tool.Context, cwd: string, command: string) {
     },
     output,
   )
-  return output.command
+  return output
 }
 
 function launch(shell: string, name: string, command: string, cwd: string, env: NodeJS.ProcessEnv) {
@@ -498,15 +498,18 @@ export const BashTool = Tool.define("bash", async () => {
       const scan = await collect(root, cwd, ps, shell)
       if (!Instance.containsPath(cwd)) scan.dirs.add(cwd)
       await ask(ctx, scan)
-      const command = await shellCommand(ctx, cwd, params.command)
+      const shellCommandOutput = await shellCommand(ctx, cwd, params.command)
 
       return run(
         {
           shell,
           name,
-          command,
+          command: shellCommandOutput.command,
           cwd,
-          env: await shellEnv(ctx, cwd),
+          env: {
+            ...await shellEnv(ctx, cwd),
+            ...shellCommandOutput.env,
+          },
           timeout,
           description: params.description,
         },

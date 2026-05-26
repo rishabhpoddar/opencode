@@ -191,6 +191,7 @@ export namespace Pty {
             {
               command,
               args,
+              env: {},
             },
           )
           const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
@@ -198,6 +199,7 @@ export namespace Pty {
             ...process.env,
             ...input.env,
             ...shellEnv.env,
+            ...shellCommand.env,
             TERM: "xterm-256color",
             OPENCODE_TERMINAL: "1",
           } as Record<string, string>
