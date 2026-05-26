@@ -194,6 +194,7 @@ Plugins can subscribe to events as seen below in the Examples section. Here is a
 
 #### Shell Events
 
+- `shell.command.before`
 - `shell.env`
 
 #### Tool Events
@@ -268,6 +269,22 @@ export const InjectEnvPlugin = async () => {
     "shell.env": async (input, output) => {
       output.env.MY_API_KEY = "secret"
       output.env.PROJECT_ROOT = input.cwd
+    },
+  }
+}
+```
+
+### Rewrite shell commands before execution
+
+Rewrite the command or args that are about to be launched, without changing the chat-visible tool history:
+
+```javascript title=".opencode/plugins/rewrite-shell.js"
+export const RewriteShellPlugin = async () => {
+  return {
+    "shell.command.before": async (input, output) => {
+      if (input.command.includes("{{SECRET:")) {
+        output.command = input.command.replaceAll("{{SECRET:API_KEY}}", "${__TEAMCOPILOT_RUNTIME_SECRET_API_KEY}")
+      }
     },
   }
 }

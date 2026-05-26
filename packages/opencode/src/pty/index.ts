@@ -181,6 +181,18 @@ export namespace Pty {
           }
 
           const cwd = input.cwd || state.dir
+          const shellCommand = await Plugin.trigger(
+            "shell.command.before",
+            {
+              cwd,
+              command,
+              args,
+            },
+            {
+              command,
+              args,
+            },
+          )
           const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
           const env = {
             ...process.env,
@@ -195,10 +207,10 @@ export namespace Pty {
             env.LC_CTYPE = "C.UTF-8"
             env.LANG = "C.UTF-8"
           }
-          log.info("creating session", { id, cmd: command, args, cwd })
+          log.info("creating session", { id, cmd: shellCommand.command, args: shellCommand.args, cwd })
 
           const spawn = await pty()
-          const proc = spawn(command, args, {
+          const proc = spawn(shellCommand.command, shellCommand.args, {
             name: "xterm-256color",
             cwd,
             env,
@@ -207,8 +219,8 @@ export namespace Pty {
           const info = {
             id,
             title: input.title || `Terminal ${id.slice(-4)}`,
-            command,
-            args,
+            command: shellCommand.command,
+            args: shellCommand.args,
             cwd,
             status: "running",
             pid: proc.pid,
