@@ -116,6 +116,20 @@ function toolCall(toolCallId: string, toolName: string, input: unknown): LLM.Eve
   return { type: "tool-call", toolCallId, toolName, input }
 }
 
+function repeatedToolCalls(toolName: string, input: Record<string, unknown>): LLM.Event[] {
+  return [
+    start(),
+    toolInputStart("tool-1", toolName),
+    toolCall("tool-1", toolName, input),
+    toolInputStart("tool-2", toolName),
+    toolCall("tool-2", toolName, input),
+    toolInputStart("tool-3", toolName),
+    toolCall("tool-3", toolName, input),
+    finishStep(),
+    finish(),
+  ]
+}
+
 function fail<E>(err: E, ...items: LLM.Event[]) {
   return stream(...items).pipe(Stream.concat(Stream.fail(err)))
 }
@@ -330,6 +344,66 @@ it.effect("session.processor effect tests capture llm input cleanly", () => {
         expect(parts.some((part) => part.type === "text" && part.text === "hello")).toBe(true)
       }),
     { git: true },
+  )
+})
+
+it.effect("session.processor effect tests skip doom loop detection for runWorkflow", () => {
+  return provideTmpdirInstance(
+    (dir) =>
+      Effect.gen(function* () {
+        const test = yield* TestLLM
+        const processors = yield* SessionProcessor.Service
+        const session = yield* Session.Service
+
+        yield* test.reply(...repeatedToolCalls("runWorkflow", { slug: "daily-sync" }))
+
+        const chat = yield* session.create({})
+        const parent = yield* user(chat.id, "run workflow")
+        const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
+        const abort = new AbortController()
+        const mdl = model(100)
+        const handle = yield* processors.create({
+          assistantMessage: msg,
+          sessionID: chat.id,
+          model: mdl,
+          abort: abort.signal,
+        })
+
+        const value = yield* handle.process({
+          user: {
+            id: parent.id,
+            sessionID: chat.id,
+            role: "user",
+            time: parent.time,
+            agent: parent.agent,
+            model: { providerID: ref.providerID, modelID: ref.modelID },
+          } satisfies MessageV2.User,
+          sessionID: chat.id,
+          model: mdl,
+          agent: agent(),
+          system: [],
+          abort: abort.signal,
+          messages: [{ role: "user", content: "run workflow" }],
+          tools: {},
+        })
+
+        const pending = yield* Effect.promise(() => Permission.list())
+
+        expect(value).toBe("continue")
+        expect(pending).toHaveLength(0)
+      }),
+    {
+      git: true,
+      config: {
+        agent: {
+          build: {
+            permission: {
+              doom_loop: "ask",
+            },
+          },
+        },
+      },
+    },
   )
 })
 
