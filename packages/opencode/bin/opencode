@@ -17,6 +17,30 @@ function run(target) {
   process.exit(code)
 }
 
+function extractTarball(tarballPath, targetDir) {
+  fs.rmSync(targetDir, { recursive: true, force: true })
+  fs.mkdirSync(targetDir, { recursive: true })
+  const result = childProcess.spawnSync("tar", ["-xzf", tarballPath, "-C", targetDir, "--strip-components=1"], {
+    stdio: "inherit",
+  })
+  if (result.status !== 0) {
+    throw new Error(`Failed to extract embedded package ${path.basename(tarballPath)}`)
+  }
+}
+
+function findEmbeddedTarball(scriptDir, packageName) {
+  const matches = fs
+    .readdirSync(scriptDir)
+    .filter((name) => name.startsWith(`${packageName}-`) && name.endsWith(".tgz"))
+
+  if (matches.length === 0) return null
+  if (matches.length > 1) {
+    throw new Error(`Found multiple embedded tarballs for ${packageName}: ${matches.join(", ")}`)
+  }
+
+  return path.join(scriptDir, matches[0])
+}
+
 const envPath = process.env.OPENCODE_BIN_PATH
 if (envPath) {
   run(envPath)
@@ -166,14 +190,26 @@ function findBinary(startDir) {
   }
 }
 
-const resolved = findBinary(scriptDir)
+let resolved = findBinary(scriptDir)
 if (!resolved) {
-  console.error(
-    "It seems that your package manager failed to install the right version of the opencode CLI for your platform. You can try manually installing " +
-      names.map((n) => `\"${n}\"`).join(" or ") +
-      " package",
-  )
-  process.exit(1)
+  const packageName = names[0]
+  const tarballPath = findEmbeddedTarball(scriptDir, packageName)
+  if (!tarballPath) {
+    console.error(
+      "It seems that your package manager failed to install the right version of the opencode CLI for your platform. You can try manually installing " +
+        names.map((n) => `\"${n}\"`).join(" or ") +
+        " package",
+    )
+    process.exit(1)
+  }
+
+  const cacheRoot = path.join(os.homedir(), ".cache", "opencode-ai")
+  const cacheDir = path.join(cacheRoot, path.basename(tarballPath, ".tgz"))
+  const cachedBinary = path.join(cacheDir, "bin", binary)
+  if (!fs.existsSync(cachedBinary)) {
+    extractTarball(tarballPath, cacheDir)
+  }
+  resolved = cachedBinary
 }
 
 run(resolved)
