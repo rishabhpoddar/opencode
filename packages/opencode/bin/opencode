@@ -28,17 +28,21 @@ function extractTarball(tarballPath, targetDir) {
   }
 }
 
-function findEmbeddedTarball(scriptDir, packageName) {
-  const matches = fs
-    .readdirSync(scriptDir)
-    .filter((name) => name.startsWith(`${packageName}-`) && name.endsWith(".tgz"))
+function findEmbeddedTarball(packageDirs, packageName) {
+  const matches = packageDirs.flatMap((dir) => {
+    if (!fs.existsSync(dir)) return []
+    return fs
+      .readdirSync(dir)
+      .filter((name) => name.startsWith(`${packageName}-`) && name.endsWith(".tgz"))
+      .map((name) => path.join(dir, name))
+  })
 
   if (matches.length === 0) return null
   if (matches.length > 1) {
-    throw new Error(`Found multiple embedded tarballs for ${packageName}: ${matches.join(", ")}`)
+    throw new Error(`Found multiple embedded tarballs for ${packageName}: ${matches.map(path.basename).join(", ")}`)
   }
 
-  return path.join(scriptDir, matches[0])
+  return matches[0]
 }
 
 const envPath = process.env.OPENCODE_BIN_PATH
@@ -48,6 +52,7 @@ if (envPath) {
 
 const scriptPath = fs.realpathSync(__filename)
 const scriptDir = path.dirname(scriptPath)
+const packageDir = path.dirname(scriptDir)
 
 //
 const cached = path.join(scriptDir, ".opencode")
@@ -193,7 +198,7 @@ function findBinary(startDir) {
 let resolved = findBinary(scriptDir)
 if (!resolved) {
   const packageName = names[0]
-  const tarballPath = findEmbeddedTarball(scriptDir, packageName)
+  const tarballPath = findEmbeddedTarball([packageDir, scriptDir], packageName)
   if (!tarballPath) {
     console.error(
       "It seems that your package manager failed to install the right version of the opencode CLI for your platform. You can try manually installing " +
