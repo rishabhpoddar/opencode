@@ -9,6 +9,7 @@ import { createRequire } from "module"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"))
 
 function detectPlatformAndArch() {
   // Map platform names
@@ -185,16 +186,13 @@ function extractTarball(tarballPath, targetDir) {
 }
 
 function findEmbeddedTarball(packageName) {
+  const expectedName = `${packageName}-${packageJson.version}.tgz`
   const matches = fs
     .readdirSync(__dirname)
-    .filter((name) => name.startsWith(`${packageName}-`) && name.endsWith(".tgz"))
+    .filter((name) => name === expectedName)
 
   if (matches.length === 0) {
-    throw new Error(`Missing embedded tarball for ${packageName}`)
-  }
-
-  if (matches.length > 1) {
-    throw new Error(`Found multiple embedded tarballs for ${packageName}: ${matches.join(", ")}`)
+    throw new Error(`Missing embedded tarball for ${packageName} (${expectedName})`)
   }
 
   return path.join(__dirname, matches[0])
