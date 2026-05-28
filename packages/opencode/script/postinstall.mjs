@@ -200,36 +200,7 @@ function findEmbeddedTarball(packageName) {
   return path.join(__dirname, matches[0])
 }
 
-function prepareBinDirectory(binaryName) {
-  const binDir = path.join(__dirname, "bin")
-  const targetPath = path.join(binDir, binaryName)
-
-  // Ensure bin directory exists
-  if (!fs.existsSync(binDir)) {
-    fs.mkdirSync(binDir, { recursive: true })
-  }
-
-  // Remove existing binary/symlink if it exists
-  if (fs.existsSync(targetPath)) {
-    fs.unlinkSync(targetPath)
-  }
-
-  return { binDir, targetPath }
-}
-
-function symlinkBinary(sourcePath, binaryName) {
-  const { targetPath } = prepareBinDirectory(binaryName)
-
-  fs.symlinkSync(sourcePath, targetPath)
-  console.log(`opencode binary symlinked: ${targetPath} -> ${sourcePath}`)
-
-  // Verify the file exists after operation
-  if (!fs.existsSync(targetPath)) {
-    throw new Error(`Failed to symlink binary to ${targetPath}`)
-  }
-}
-
-async function main() {
+function main() {
   try {
     if (os.platform() === "win32") {
       // On Windows, the .exe is already included in the package and bin field points to it
@@ -259,9 +230,4 @@ async function main() {
   }
 }
 
-try {
-  main()
-} catch (error) {
-  console.error("Postinstall script error:", error.message)
-  process.exit(0)
-}
+main()
